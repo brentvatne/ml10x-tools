@@ -1,9 +1,19 @@
 {
-  "name": "@ml10x-tools/cli",
+  "name": "ml10x",
   "version": "0.0.1",
-  "private": true,
+  "private": false,
   "type": "module",
+  "bin": {
+    "ml10x": "./dist/cli.js"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "bun build src/index.ts --target=node --outfile=dist/cli.js --external=@julusian/midi"
+  },
   "dependencies": {
+    "@julusian/midi": "^3.6.1"
+  },
+  "devDependencies": {
     "@ml10x-tools/protocol": "workspace:*",
     "@ml10x-tools/midi": "workspace:*"
   }
