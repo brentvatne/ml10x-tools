@@ -2,49 +2,74 @@ package expo.modules.midi
 
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
-import java.net.URL
+import expo.modules.kotlin.Promise
 
 class MidiModule : Module() {
-  // Each module class must implement the definition function. The definition consists of components
-  // that describes the module's functionality and behavior.
-  // See https://docs.expo.dev/modules/module-api for more details about available components.
-  override fun definition() = ModuleDefinition {
-    // Sets the name of the module that JavaScript code will use to refer to the module. Takes a string as an argument.
-    // Can be inferred from module's class name, but it's recommended to set it explicitly for clarity.
-    // The module will be accessible from `requireNativeModule('Midi')` in JavaScript.
-    Name("Midi")
+    private val midiManager by lazy { MidiManager(appContext.reactContext!!) }
+    private var isSetup = false
 
-    // Defines constant property on the module.
-    Constant("PI") {
-      Math.PI
+    private fun ensureSetup() {
+        if (isSetup) return
+        midiManager.setup()
+        isSetup = true
+
+        midiManager.onMessage = { data ->
+            sendEvent("onMidiMessage", mapOf(
+                "data" to data.map { it.toInt() and 0xFF },
+                "deltaTime" to 0
+            ))
+        }
+        midiManager.onDevicesChanged = {
+            sendEvent("onDevicesChanged", emptyMap<String, Any>())
+        }
+        midiManager.onDisconnect = {
+            sendEvent("onDisconnect", emptyMap<String, Any>())
+        }
     }
 
-    // Defines event names that the module can send to JavaScript.
-    Events("onChange")
+    override fun definition() = ModuleDefinition {
+        Name("Midi")
 
-    // Defines a JavaScript synchronous function that runs the native code on the JavaScript thread.
-    Function("hello") {
-      "Hello world! 👋"
-    }
+        Events("onMidiMessage", "onDevicesChanged", "onDisconnect")
 
-    // Defines a JavaScript function that always returns a Promise and whose native code
-    // is by default dispatched on the different thread than the JavaScript runtime runs on.
-    AsyncFunction("setValueAsync") { value: String ->
-      // Send an event to JavaScript.
-      sendEvent("onChange", mapOf(
-        "value" to value
-      ))
-    }
+        OnStartObserving {
+            ensureSetup()
+        }
 
-    // Enables the module to be used as a native view. Definition components that are accepted as part of
-    // the view definition: Prop, Events.
-    View(MidiView::class) {
-      // Defines a setter for the `url` prop.
-      Prop("url") { view: MidiView, url: URL ->
-        view.webView.loadUrl(url.toString())
-      }
-      // Defines an event that the view can send to JavaScript.
-      Events("onLoad")
+        OnDestroy {
+            midiManager.onMessage = null
+            midiManager.onDevicesChanged = null
+            midiManager.onDisconnect = null
+            midiManager.teardown()
+        }
+
+        Function("listInputs") {
+            ensureSetup()
+            midiManager.listInputs()
+        }
+
+        Function("listOutputs") {
+            ensureSetup()
+            midiManager.listOutputs()
+        }
+
+        AsyncFunction("openPorts") { inputName: String, outputName: String, promise: Promise ->
+            ensureSetup()
+            midiManager.openPorts(inputName, outputName) { success, error ->
+                if (success) {
+                    promise.resolve(null)
+                } else {
+                    promise.reject("MIDI_ERROR", error ?: "Failed to open ports", null)
+                }
+            }
+        }
+
+        Function("sendMessage") { data: List<Int> ->
+            midiManager.send(data.map { it.toByte() }.toByteArray())
+        }
+
+        Function("closePorts") {
+            midiManager.close()
+        }
     }
-  }
 }

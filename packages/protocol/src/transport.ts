@@ -12,7 +12,7 @@ export interface Transport {
 export interface MidiModule {
   listInputs(): string[];
   listOutputs(): string[];
-  openPorts(inputName: string, outputName: string): void;
+  openPorts(inputName: string, outputName: string): void | Promise<void>;
   sendMessage(data: number[]): void;
   setMessageHandler(handler: MessageHandler): void;
   removeMessageHandler(): void;

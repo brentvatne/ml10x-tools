@@ -7,7 +7,7 @@ const input = new midi.Input();
 const output = new midi.Output();
 let handler: MessageHandler | null = null;
 
-export const NodeMidiModule: MidiModule = {
+export const platformModule: MidiModule = {
   listInputs() {
     const names: string[] = [];
     for (let i = 0; i < input.getPortCount(); i++) {

@@ -1,48 +1,74 @@
 import ExpoModulesCore
 
 public class MidiModule: Module {
-  // Each module class must implement the definition function. The definition consists of components
-  // that describes the module's functionality and behavior.
-  // See https://docs.expo.dev/modules/module-api for more details about available components.
-  public func definition() -> ModuleDefinition {
-    // Sets the name of the module that JavaScript code will use to refer to the module. Takes a string as an argument.
-    // Can be inferred from module's class name, but it's recommended to set it explicitly for clarity.
-    // The module will be accessible from `requireNativeModule('Midi')` in JavaScript.
-    Name("Midi")
+    private lazy var midiManager = MidiManager()
+    private var isSetup = false
 
-    // Defines constant property on the module.
-    Constant("PI") {
-      Double.pi
-    }
+    private func ensureSetup() {
+        guard !isSetup else { return }
+        do {
+            try midiManager.setup()
+            isSetup = true
 
-    // Defines event names that the module can send to JavaScript.
-    Events("onChange")
-
-    // Defines a JavaScript synchronous function that runs the native code on the JavaScript thread.
-    Function("hello") {
-      return "Hello world! 👋"
-    }
-
-    // Defines a JavaScript function that always returns a Promise and whose native code
-    // is by default dispatched on the different thread than the JavaScript runtime runs on.
-    AsyncFunction("setValueAsync") { (value: String) in
-      // Send an event to JavaScript.
-      self.sendEvent("onChange", [
-        "value": value
-      ])
-    }
-
-    // Enables the module to be used as a native view. Definition components that are accepted as part of the
-    // view definition: Prop, Events.
-    View(MidiView.self) {
-      // Defines a setter for the `url` prop.
-      Prop("url") { (view: MidiView, url: URL) in
-        if view.webView.url != url {
-          view.webView.load(URLRequest(url: url))
+            midiManager.onMessage = { [weak self] data in
+                let hex = data.prefix(10).map { String(format: "%02x", $0) }.joined(separator: " ")
+                print("[MidiModule] sendEvent onMidiMessage: \(data.count)B, \(hex)")
+                self?.sendEvent("onMidiMessage", [
+                    "data": data.map { Int($0) },
+                    "deltaTime": 0
+                ])
+            }
+            midiManager.onDevicesChanged = { [weak self] in
+                self?.sendEvent("onDevicesChanged", [:])
+            }
+            midiManager.onDisconnect = { [weak self] in
+                self?.sendEvent("onDisconnect", [:])
+            }
+        } catch {
+            print("MIDI setup failed: \(error)")
         }
-      }
-
-      Events("onLoad")
     }
-  }
+
+    public func definition() -> ModuleDefinition {
+        Name("Midi")
+
+        Events("onMidiMessage", "onDevicesChanged", "onDisconnect")
+
+        // OnStartObserving intentionally empty — ensureSetup() is called by
+        // each Function handler. This avoids a race condition where
+        // OnStartObserving runs async on a background queue while openPorts
+        // runs ensureSetup() synchronously, potentially double-creating MIDI ports.
+        OnStartObserving {}
+
+        OnDestroy {
+            self.midiManager.onMessage = nil
+            self.midiManager.onDevicesChanged = nil
+            self.midiManager.onDisconnect = nil
+            self.midiManager.disconnect()
+        }
+
+        Function("listInputs") { () -> [String] in
+            self.ensureSetup()
+            return self.midiManager.listSources()
+        }
+
+        Function("listOutputs") { () -> [String] in
+            self.ensureSetup()
+            return self.midiManager.listDestinations()
+        }
+
+        Function("openPorts") { (inputName: String, outputName: String) in
+            self.ensureSetup()
+            try self.midiManager.connect(sourceName: inputName, destName: outputName)
+        }
+
+        Function("sendMessage") { (data: [Int]) in
+            let bytes = data.map { UInt8(clamping: $0) }
+            self.midiManager.send(data: bytes)
+        }
+
+        Function("closePorts") {
+            self.midiManager.disconnect()
+        }
+    }
 }

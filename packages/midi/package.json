@@ -3,11 +3,22 @@
   "version": "0.0.1",
   "private": true,
   "description": "MIDI transport for ML10X",
+  "license": "0BSD",
+  "author": "Brent Vatne",
+  "homepage": "https://github.com/brentvatne/ml10x-tools",
   "exports": {
     ".": "./src/index.ts"
   },
   "dependencies": {
     "@ml10x-tools/protocol": "workspace:*",
     "@julusian/midi": "^3.6.1"
+  },
+  "peerDependencies": {
+    "expo": "~55.0.0-preview.11",
+    "react-native": "0.83.2"
+  },
+  "peerDependenciesMeta": {
+    "expo": { "optional": true },
+    "react-native": { "optional": true }
   }
 }
