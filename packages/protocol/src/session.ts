@@ -8,12 +8,12 @@ import {
   buildRequestControllerInfo,
   describeSysex,
   isML10XSysex,
+  parsePresetData,
   parsePresetNames,
   parseSysex,
-  parseTLV,
   ResponseType,
   StatusCode,
-  type TLVEntry,
+  type PresetData,
 } from "./protocol.ts";
 
 export interface ML10XSessionEvents {
@@ -23,7 +23,7 @@ export interface ML10XSessionEvents {
   presetName: [name: string];
   loading: [active: boolean];
   loadingProgress: [progress: number];
-  presetData: [bank: number, preset: number, tlv: TLVEntry[]];
+  presetData: [bank: number, preset: number, data: PresetData];
   message: [description: string, data: number[]];
   midi: [data: number[]];
   info: [payload: number[]];
@@ -34,6 +34,7 @@ export class ML10XSession extends EventEmitter<ML10XSessionEvents> {
   private _preset = 0;
   private _loading = false;
   private _presetNames: Map<number, string[]> = new Map();
+  private _loadingPresetCache: Map<number, PresetData> = new Map();
 
   constructor(private transport: Transport) {
     super();
@@ -99,9 +100,13 @@ export class ML10XSession extends EventEmitter<ML10XSessionEvents> {
         }
 
         if (parsed.f1 === ResponseType.PRESET_DATA && parsed.f2 === 0) {
-          const tlv = parseTLV(parsed.payload);
-          this.emit("presetData", parsed.f4, parsed.f3, tlv);
-          if (!this._loading) {
+          const presetData = parsePresetData(parsed.payload);
+          if (this._loading) {
+            // During loading, cache all preset data and track bank
+            this._bank = parsed.f4;
+            this._loadingPresetCache.set(parsed.f3, presetData);
+          } else {
+            this.emit("presetData", parsed.f4, parsed.f3, presetData);
             this._preset = parsed.f3;
             this._bank = parsed.f4;
             this.emit("preset", this._bank, this._preset);
@@ -126,6 +131,13 @@ export class ML10XSession extends EventEmitter<ML10XSessionEvents> {
           } else if (parsed.f2 === StatusCode.LOADING_END) {
             this._loading = false;
             this.emit("loading", false);
+            const cached = this._loadingPresetCache.get(this._preset);
+            if (cached) {
+              this.emit("presetData", this._bank, this._preset, cached);
+            }
+            this._loadingPresetCache.clear();
+            this.emit("preset", this._bank, this._preset);
+            this.emitPresetName();
           }
         }
       }

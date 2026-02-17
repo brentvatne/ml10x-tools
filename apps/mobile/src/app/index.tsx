@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { useML10X } from "@/context/ML10XContext";
+import { RoutingDiagram } from "@/components/RoutingDiagram";
 
 function DebugButton() {
   const router = useRouter();
@@ -14,7 +15,7 @@ function DebugButton() {
 }
 
 export default function Index() {
-  const { connectionState, bank, preset, presetName, loading, loadingProgress, error, connect, disconnect, nextPreset, prevPreset, nextBank, prevBank } = useML10X();
+  const { connectionState, bank, preset, presetName, presetData, loading, loadingProgress, error, connect, disconnect, nextPreset, prevPreset, nextBank, prevBank } = useML10X();
   const insets = useSafeAreaInsets();
 
   if (connectionState === "disconnected") {
@@ -112,6 +113,12 @@ export default function Index() {
           </Pressable>
         </View>
         {presetName !== "" && <Text style={styles.presetNameText}>{presetName}</Text>}
+
+        {presetData && (
+          <View style={styles.routingContainer}>
+            <RoutingDiagram data={presetData} />
+          </View>
+        )}
       </View>
 
       <View style={styles.footer}>
@@ -276,5 +283,9 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
     fontVariant: ["tabular-nums"],
+  },
+  routingContainer: {
+    marginTop: 24,
+    alignItems: "center",
   },
 });

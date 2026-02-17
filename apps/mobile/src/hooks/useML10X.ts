@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { MidiTransport } from "@ml10x-tools/midi";
-import { ML10XSession, hexDump, buildScrollPresetUp, buildScrollPresetDown, buildBankUp, buildBankDown, type TLVEntry } from "@ml10x-tools/protocol";
+import { ML10XSession, hexDump, buildScrollPresetUp, buildScrollPresetDown, buildBankUp, buildBankDown, NODE_LABELS, LOOP_NAMES, type PresetData, type NodeId } from "@ml10x-tools/protocol";
 
 export type ConnectionState = "disconnected" | "connecting" | "connected";
 
@@ -14,6 +14,7 @@ export function useML10X() {
   const [loading, setLoading] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [presetName, setPresetName] = useState("");
+  const [presetData, setPresetData] = useState<PresetData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const sessionRef = useRef<ML10XSession | null>(null);
@@ -77,13 +78,12 @@ export function useML10X() {
         setPresetName(name);
       });
 
-      session.on("presetData", (b, p, tlv) => {
-        log(`presetData: bank=${b} preset=${p} entries=${tlv.length}`);
-        for (const entry of tlv) {
-          const ascii = entry.data.every((b) => b >= 0x20 && b < 0x7f)
-            ? ` "${String.fromCharCode(...entry.data)}"`
-            : "";
-          log(`  tag=0x${entry.tag.toString(16).padStart(2, "0")} len=${entry.data.length} data=[${hexDump(entry.data)}]${ascii}`);
+      session.on("presetData", (b, p, data) => {
+        setPresetData(data);
+        const engaged = data.engagedLoops.map((l) => LOOP_NAMES[l]).join(", ") || "none";
+        log(`preset ${p} "${data.name}" engaged=[${engaged}]`);
+        for (const [dest, src] of Object.entries(data.connections)) {
+          log(`  ${NODE_LABELS[+dest as NodeId]} ← ${NODE_LABELS[+src as NodeId]}`);
         }
       });
 
@@ -125,5 +125,5 @@ export function useML10X() {
     sessionRef.current?.send(buildBankDown());
   }, []);
 
-  return { connectionState, bank, preset, presetName, loading, loadingProgress, error, logs, connect, disconnect, clearLogs, nextPreset, prevPreset, nextBank, prevBank };
+  return { connectionState, bank, preset, presetName, presetData, loading, loadingProgress, error, logs, connect, disconnect, clearLogs, nextPreset, prevPreset, nextBank, prevBank };
 }

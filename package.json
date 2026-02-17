@@ -9,5 +9,5 @@
   "peerDependencies": {
     "typescript": "^5"
   },
-  "trustedDependencies": ["@julusian/midi", "unrs-resolver"]
+  "trustedDependencies": ["@julusian/midi", "@shopify/react-native-skia", "unrs-resolver"]
 }

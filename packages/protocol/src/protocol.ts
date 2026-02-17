@@ -267,6 +267,104 @@ export function parsePresetNames(payload: number[]): string[] {
   );
 }
 
+// ─── Routing Model ───────────────────────────────────────────────
+
+export enum NodeId {
+  InputTip = 0x00,
+  InputRing = 0x01,
+  OutputTip = 0x02,
+  OutputRing = 0x03,
+  LoopATip = 0x04,
+  LoopBTip = 0x05,
+  LoopCTip = 0x06,
+  LoopDTip = 0x07,
+  LoopETip = 0x08,
+  LoopARing = 0x09,
+  LoopBRing = 0x0a,
+  LoopCRing = 0x0b,
+  LoopDRing = 0x0c,
+  LoopERing = 0x0d,
+}
+
+export const NODE_LABELS: Record<NodeId, string> = {
+  [NodeId.InputTip]: "Input Tip",
+  [NodeId.InputRing]: "Input Ring",
+  [NodeId.OutputTip]: "Output Tip",
+  [NodeId.OutputRing]: "Output Ring",
+  [NodeId.LoopATip]: "Loop A Tip",
+  [NodeId.LoopBTip]: "Loop B Tip",
+  [NodeId.LoopCTip]: "Loop C Tip",
+  [NodeId.LoopDTip]: "Loop D Tip",
+  [NodeId.LoopETip]: "Loop E Tip",
+  [NodeId.LoopARing]: "Loop A Ring",
+  [NodeId.LoopBRing]: "Loop B Ring",
+  [NodeId.LoopCRing]: "Loop C Ring",
+  [NodeId.LoopDRing]: "Loop D Ring",
+  [NodeId.LoopERing]: "Loop E Ring",
+};
+
+export enum Loop {
+  A = 0,
+  B = 1,
+  C = 2,
+  D = 3,
+  E = 4,
+}
+
+export const LOOPS = [Loop.A, Loop.B, Loop.C, Loop.D, Loop.E] as const;
+export const LOOP_NAMES = ["A", "B", "C", "D", "E"] as const;
+
+export function loopTip(loop: Loop): NodeId {
+  return NodeId.LoopATip + loop;
+}
+
+export function loopRing(loop: Loop): NodeId {
+  return NodeId.LoopARing + loop;
+}
+
+export interface PresetData {
+  name: string;
+  /** Destination node → source node. Engaged loops' connectors are absent (they are sources). */
+  connections: Partial<Record<NodeId, NodeId>>;
+  /** Loops whose connectors are active sources in the signal chain. */
+  engagedLoops: Loop[];
+}
+
+export function parsePresetData(payload: number[]): PresetData {
+  const entries = parseTLV(payload);
+
+  let name = "";
+  const connections: Partial<Record<NodeId, NodeId>> = {};
+  const presentTags = new Set<number>();
+
+  for (const entry of entries) {
+    if (entry.tag === 0x20) {
+      name = String.fromCharCode(...entry.data).replace(/\0+$/, "").trim();
+    }
+    if (entry.tag >= 0x02 && entry.tag <= 0x0d && entry.data.length === 1) {
+      connections[entry.tag as NodeId] = entry.data[0] as NodeId;
+      presentTags.add(entry.tag);
+    }
+  }
+
+  // If no connection tags at all, this is an empty/unused preset
+  if (presentTags.size === 0) {
+    return { name, connections, engagedLoops: [] };
+  }
+
+  // Engaged loops: both tip and ring tags are absent from the connection table
+  const engagedLoops: Loop[] = [];
+  for (const loop of LOOPS) {
+    if (!presentTags.has(loopTip(loop)) && !presentTags.has(loopRing(loop))) {
+      engagedLoops.push(loop);
+    }
+  }
+
+  return { name, connections, engagedLoops };
+}
+
+// ─── Utilities ───────────────────────────────────────────────────
+
 export function hexDump(data: number[] | Uint8Array): string {
   return Array.from(data)
     .map((b) => b.toString(16).padStart(2, "0"))
