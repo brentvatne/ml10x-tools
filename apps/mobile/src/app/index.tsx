@@ -114,11 +114,9 @@ export default function Index() {
         </View>
         {presetName !== "" && <Text style={styles.presetNameText}>{presetName}</Text>}
 
-        {presetData && (
-          <View style={styles.routingContainer}>
-            <RoutingDiagram data={presetData} />
-          </View>
-        )}
+        <View style={styles.routingContainer}>
+          {!loading && <RoutingDiagram data={presetData} />}
+        </View>
       </View>
 
       <View style={styles.footer}>
@@ -287,5 +285,7 @@ const styles = StyleSheet.create({
   routingContainer: {
     marginTop: 24,
     alignItems: "center",
+    width: 220,
+    height: 170,
   },
 });

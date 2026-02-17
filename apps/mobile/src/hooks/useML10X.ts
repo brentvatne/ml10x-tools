@@ -29,6 +29,8 @@ export function useML10X() {
 
     setError(null);
     setLogs([]);
+    setLoading(true);
+    setPresetData(null);
     setConnectionState("connecting");
 
     try {
