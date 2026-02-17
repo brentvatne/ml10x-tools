@@ -1,9 +1,0 @@
-{
-  "platforms": ["apple", "android", "web"],
-  "apple": {
-    "modules": ["MidiModule"]
-  },
-  "android": {
-    "modules": ["expo.modules.midi.MidiModule"]
-  }
-}

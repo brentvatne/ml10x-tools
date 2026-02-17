@@ -1,0 +1,10 @@
+{
+  "name": "@ml10x-tools/cli",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@ml10x-tools/protocol": "workspace:*",
+    "@ml10x-tools/midi": "workspace:*"
+  }
+}
