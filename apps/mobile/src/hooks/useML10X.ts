@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import { MidiTransport } from "@ml10x-tools/midi";
-import { ML10XSession, hexDump } from "@ml10x-tools/protocol";
+import { ML10XSession, hexDump, buildScrollPresetUp, buildScrollPresetDown, buildBankUp, buildBankDown, type TLVEntry } from "@ml10x-tools/protocol";
 
 export type ConnectionState = "disconnected" | "connecting" | "connected";
 
-const MAX_LOGS = 30;
+const MAX_LOGS = 100;
 
 export function useML10X() {
   const [connectionState, setConnectionState] =
@@ -12,6 +12,8 @@ export function useML10X() {
   const [bank, setBank] = useState(0);
   const [preset, setPreset] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [presetName, setPresetName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const sessionRef = useRef<ML10XSession | null>(null);
@@ -21,7 +23,6 @@ export function useML10X() {
   }, []);
 
   const connect = useCallback(async () => {
-    // Clean up any existing session
     sessionRef.current?.close();
     sessionRef.current = null;
 
@@ -65,6 +66,25 @@ export function useML10X() {
 
       session.on("loading", (active) => {
         setLoading(active);
+        if (active) setLoadingProgress(0);
+      });
+
+      session.on("loadingProgress", (progress) => {
+        setLoadingProgress(progress);
+      });
+
+      session.on("presetName", (name) => {
+        setPresetName(name);
+      });
+
+      session.on("presetData", (b, p, tlv) => {
+        log(`presetData: bank=${b} preset=${p} entries=${tlv.length}`);
+        for (const entry of tlv) {
+          const ascii = entry.data.every((b) => b >= 0x20 && b < 0x7f)
+            ? ` "${String.fromCharCode(...entry.data)}"`
+            : "";
+          log(`  tag=0x${entry.tag.toString(16).padStart(2, "0")} len=${entry.data.length} data=[${hexDump(entry.data)}]${ascii}`);
+        }
       });
 
       log("calling session.connect()...");
@@ -85,5 +105,25 @@ export function useML10X() {
     log("disconnected by user");
   }, [log]);
 
-  return { connectionState, bank, preset, loading, error, logs, connect, disconnect };
+  const clearLogs = useCallback(() => {
+    setLogs([]);
+  }, []);
+
+  const nextPreset = useCallback(() => {
+    sessionRef.current?.send(buildScrollPresetUp());
+  }, []);
+
+  const prevPreset = useCallback(() => {
+    sessionRef.current?.send(buildScrollPresetDown());
+  }, []);
+
+  const nextBank = useCallback(() => {
+    sessionRef.current?.send(buildBankUp());
+  }, []);
+
+  const prevBank = useCallback(() => {
+    sessionRef.current?.send(buildBankDown());
+  }, []);
+
+  return { connectionState, bank, preset, presetName, loading, loadingProgress, error, logs, connect, disconnect, clearLogs, nextPreset, prevPreset, nextBank, prevBank };
 }

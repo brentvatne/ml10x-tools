@@ -198,6 +198,14 @@ export function buildBankDown(): number[] {
   return buildSysex(0, Func.BANK_DOWN);
 }
 
+export function buildScrollPresetUp(): number[] {
+  return buildSysex(0, Func.SCROLL_PRESET, 127);
+}
+
+export function buildScrollPresetDown(): number[] {
+  return buildSysex(0, Func.SCROLL_PRESET, 0);
+}
+
 // Standard MIDI messages (non-SysEx)
 export function buildBankSelect(channel: number, bank: number): number[] {
   return [0xb0 + (channel - 1), CC.BANK_SELECT, bank & 0x03];
@@ -230,6 +238,33 @@ export function parseSysex(data: number[] | Uint8Array) {
     f6: data[Pos.FUNC_6] as number,
     payload: Array.from(data.slice(16, data.length - 2)),
   };
+}
+
+export interface TLVEntry {
+  tag: number;
+  data: number[];
+}
+
+export function parseTLV(payload: number[]): TLVEntry[] {
+  const entries: TLVEntry[] = [];
+  let i = 0;
+  while (i < payload.length) {
+    if (payload[i] !== 0x7f) { i++; continue; }
+    if (i + 2 >= payload.length) break;
+    const tag = payload[i + 1]!;
+    const len = payload[i + 2]!;
+    if (i + 3 + len > payload.length) break;
+    entries.push({ tag, data: payload.slice(i + 3, i + 3 + len) });
+    i += 3 + len;
+  }
+  return entries;
+}
+
+export function parsePresetNames(payload: number[]): string[] {
+  const entries = parseTLV(payload);
+  return entries.map((e) =>
+    String.fromCharCode(...e.data).replace(/\0+$/, "").trim()
+  );
 }
 
 export function hexDump(data: number[] | Uint8Array): string {
